@@ -20,6 +20,39 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
         public int DeviceSize;
         public int MaximumNumberOfBytesInMultiProgram;
         public EraseBlockRegionInfo[]? Regions;
+
+        public int GetSectorSize(int index)
+        {
+            if (!Regions!.Any()) throw new InvalidDataException("Can't get block regions list");
+            int currentIndex = index;
+            foreach (var sector in Regions!)
+            {
+                if (currentIndex < sector.NumberOfBlocks)
+                    return sector.SizeOfBlocks;
+                else
+                    currentIndex -= sector.NumberOfBlocks;
+            }
+            return 0;
+        }
+
+        public int TotalSectorsRequired(int size)
+        {
+            if (!Regions!.Any()) throw new InvalidDataException("Can't get block regions list");
+            int currentSize = size;
+            int currentBlocksCount = 0;
+            foreach (var sector in Regions!)
+            {
+                var sectorBlockSize = sector.SizeOfBlocks * sector.NumberOfBlocks;
+                if (currentSize < sectorBlockSize)
+                    return currentBlocksCount + (int)Math.Ceiling((float)currentSize / (float)sector.SizeOfBlocks);
+                else
+                {
+                    currentSize -= sectorBlockSize;
+                    currentBlocksCount += sector.NumberOfBlocks;
+                }
+            }
+            return 0;
+        }
     }
 
     public abstract class FlashWriter
@@ -135,7 +168,7 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                 Console.WriteLine($"ERROR! {ex.Message}. Lets continue anyway.");
             }
 
-            int banks = (int)Math.Ceiling((float)PRG.Length / (float)BankSize);
+            int banks = flash.TotalSectorsRequired(PRG.Length);
             int region = 0;
             int totalSector = 0;
             int currentRegionSector = 0;
@@ -148,21 +181,23 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
             bool sectorContainsData = false;
             stopwatch.Start();
 
-            while (totalBank < banks)
+            int offset = 0;
+            while (totalSector < banks)
             {
                 try
                 {
-                    int offset = totalBank * BankSize;
+                    int bankSize = Math.Min(BankSize, flash.GetSectorSize(totalSector));
 
                     if (EraseMode == FlashEraseMode.Sector)
                     {
-                        if (currentSectorBank * BankSize >= flash.Regions![region].SizeOfBlocks)
+                        if (currentSectorBank * bankSize >= flash.Regions![region].SizeOfBlocks)
                         {
                             totalSector++;
                             currentRegionSector++;
                             currentSectorBank = 0;
+                            bankSize = Math.Min(BankSize, flash.GetSectorSize(totalSector));
                         }
-                        if (currentRegionSector > flash.Regions[region].NumberOfBlocks)
+                        if (currentRegionSector >= flash.Regions[region].NumberOfBlocks)
                         {
                             region++;
                             currentRegionSector = 0;
@@ -171,8 +206,8 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                         {
                             // Bad sector :( Skip it
                             Console.WriteLine($"Sector #{totalSector} is bad, let's skip it.");
-                            totalBank += flash.Regions[region].SizeOfBlocks / BankSize;
-                            currentSectorBank += flash.Regions[region].SizeOfBlocks / BankSize;
+                            totalBank += flash.Regions[region].SizeOfBlocks / bankSize;
+                            currentSectorBank += flash.Regions[region].SizeOfBlocks / bankSize;
                             continue;
                         }
                     }
@@ -195,18 +230,18 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                         Console.WriteLine("OK");
                     }
 
-                    var data = PRG.Skip(offset).Take(BankSize).ToArray();
+                    var data = PRG.Skip(offset).Take(bankSize).ToArray();
                     sectorContainsData |= data.Where(b => b != 0xFF).Any();
                     var timePassed = stopwatch.Elapsed;
                     var timeEstimated = offset > 0 ? timePassed * PRG.Length / offset : new TimeSpan();
-                    Console.Write($"Writing bank #{totalBank}/{banks} ({(offset > 0 ? 100L * offset / PRG.Length : 0)}%, {timePassed.Hours:D2}:{timePassed.Minutes:D2}:{timePassed.Seconds:D2}/{timeEstimated.Hours:D2}:{timeEstimated.Minutes:D2}:{timeEstimated.Seconds:D2})... ");
+                    Console.Write($"Writing bank #{totalSector}/{banks} ({(offset > 0 ? 100L * offset / PRG.Length : 0)}%, {timePassed.Hours:D2}:{timePassed.Minutes:D2}:{timePassed.Seconds:D2}/{timeEstimated.Hours:D2}:{timeEstimated.Minutes:D2}:{timeEstimated.Seconds:D2})... ");
                     Write(data, offset);
                     Console.WriteLine("OK");
 
                     if (EraseMode == FlashEraseMode.Sector)
                     {
-                        if (((currentSectorBank + 1) * BankSize >= flash.Regions![region].SizeOfBlocks) // end of sector
-                            || (totalBank + 1 >= banks)) // last bank
+                        if (((currentSectorBank + 1) * bankSize >= flash.Regions![region].SizeOfBlocks) // end of sector
+                            || (totalSector + 1 >= banks)) // last bank
                         {
                             if (CanUsePpbs && writePBBs && sectorContainsData)
                                 PPBSet(offset);
@@ -214,7 +249,9 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                         }
                     }
 
+                    offset += bankSize;
                     totalBank++;
+                    Console.WriteLine($"totalBank {totalSector}, offset {offset:x04}");
                     currentSectorBank++;
                 }
                 catch (Exception ex)
@@ -261,7 +298,8 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                 Program.Reset(dumper);
                 InitBanking();
 
-                banks = PRG.Length / BankSize;
+                banks = flash.TotalSectorsRequired(PRG.Length);
+                //banks = PRG.Length / BankSize;
                 region = 0;
                 totalSector = 0;
                 currentRegionSector = 0;
@@ -269,20 +307,22 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                 currentSectorBank = 0;
                 stopwatch = new Stopwatch();
                 stopwatch.Start();
+                offset = 0;
 
-                while (totalBank < banks)
+                while (totalSector < banks)
                 {
-                    int offset = totalBank * BankSize;
+                    int bankSize = Math.Min(BankSize, flash.GetSectorSize(totalBank));
 
                     if (EraseMode == FlashEraseMode.Sector)
                     {
-                        if (currentSectorBank * BankSize >= flash.Regions![region].SizeOfBlocks)
+                        if (currentSectorBank * bankSize >= flash.Regions![region].SizeOfBlocks)
                         {
                             totalSector++;
                             currentRegionSector++;
                             currentSectorBank = 0;
+                            bankSize = Math.Min(BankSize, flash.GetSectorSize(totalSector));
                         }
-                        if (currentRegionSector > flash.Regions[region].NumberOfBlocks)
+                        if (currentRegionSector >= flash.Regions[region].NumberOfBlocks)
                         {
                             region++;
                             currentRegionSector = 0;
@@ -291,13 +331,13 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                         {
                             // Bad sector :( Skip it
                             Console.WriteLine($"Sector #{totalSector} is bad, let's skip it.");
-                            totalBank += flash.Regions[region].SizeOfBlocks / BankSize;
-                            currentSectorBank += flash.Regions[region].SizeOfBlocks / BankSize;
+                            totalBank += flash.Regions[region].SizeOfBlocks / bankSize;
+                            currentSectorBank += flash.Regions[region].SizeOfBlocks / bankSize;
                             continue;
                         }
                     }
 
-                    ushort crc = Crc16Calculator.CalculateCRC16(PRG, offset, BankSize);
+                    ushort crc = Crc16Calculator.CalculateCRC16(PRG, offset, bankSize);
                     var timePassed = stopwatch.Elapsed;
                     var timeEstimated = offset > 0 ? timePassed * PRG.Length / offset : new TimeSpan();
                     Console.Write($"Reading CRC of bank #{totalBank}/{banks} ({(offset > 0 ? 100L * offset / PRG.Length : 0)}%, {timePassed.Hours:D2}:{timePassed.Minutes:D2}:{timePassed.Seconds:D2}/{timeEstimated.Hours:D2}:{timeEstimated.Minutes:D2}:{timeEstimated.Seconds:D2})... ");
@@ -320,6 +360,7 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
 
                     totalBank++;
                     currentSectorBank++;
+                    offset += bankSize;
                 }
             }
 

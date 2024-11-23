@@ -61,19 +61,44 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
         protected override void Erase(int offset)
         {
             SelectBank(offset / BankSize);
-            dumper.EraseFlashSector();
+            //dumper.EraseFlashSector();
+            ushort sectorAddress = (ushort)(0x8000 | (0xFFFF & ((ushort)offset)));
+
+            dumper.WriteCpu(sectorAddress, 0xF0);
+            dumper.WriteCpu(0x8AAA, 0xAA);
+            dumper.WriteCpu(0x8555, 0x55);
+            dumper.WriteCpu(0x8AAA, 0x80);
+            dumper.WriteCpu(0x8AAA, 0xAA);
+            dumper.WriteCpu(0x8555, 0x55);
+            dumper.WriteCpu(sectorAddress, 0x30);
+
+            Console.Write("Erase sector {0:x}", dumper.ReadCpu(sectorAddress));
+            DateTime startTime = DateTime.Now;
+            while (true)
+            {
+                byte b = dumper.ReadCpu(sectorAddress);
+                if (b == 0xFF)
+                    break;
+                if ((DateTime.Now - startTime).TotalMilliseconds >= 5000)
+                {
+                    Console.WriteLine(@" - erase failed");
+                    throw new Exception("erase failed");
+                }
+            }
         }
 
         protected override void Write(byte[] data, int offset)
         {
             SelectBank(offset / BankSize);
-            dumper.WriteFlash(0x8000, data);
+            ushort sectorAddress = (ushort)(0x8000 | (0xFFFF & ((ushort)offset)));
+            dumper.WriteFlash(sectorAddress, data);
         }
 
         protected override ushort ReadCrc(int offset)
         {
             SelectBank(offset / BankSize);
-            return dumper.ReadCpuCrc(0x8000, BankSize);
+            ushort sectorAddress = (ushort)(0x8000 | (0xFFFF & ((ushort)offset)));
+            return dumper.ReadCpuCrc(sectorAddress, BankSize);
         }
 
         protected override void PPBClear()

@@ -43,7 +43,7 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
             foreach (var sector in Regions!)
             {
                 var sectorBlockSize = sector.SizeOfBlocks * sector.NumberOfBlocks;
-                if (currentSize < sectorBlockSize)
+                if (currentSize <= sectorBlockSize)
                     return currentBlocksCount + (int)Math.Ceiling((float)currentSize / (float)sector.SizeOfBlocks);
                 else
                 {

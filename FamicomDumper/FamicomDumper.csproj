@@ -316,9 +316,6 @@
     </EmbeddedResource>
   </ItemGroup>
 
-  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <Exec Command="make -C .. commit buildtime&#xD;&#xA;" />
-  </Target>
 
   <PropertyGroup>
     <DebugType>embedded</DebugType>

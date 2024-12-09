@@ -16,7 +16,7 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
         private int submapper;
 
         protected override IFamicomDumperConnectionExt dumper { get; }
-        protected override int BankSize => 0x4000;
+        protected override int BankSize => 0x2000;
         protected override FlashEraseMode EraseMode => FlashEraseMode.Sector;
         protected override bool UseSubmappers => true;
         protected override bool CanUsePpbs => true;
@@ -31,6 +31,13 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
         protected override void Init()
         {
             if (coolboyGpioMode) dumper.SetCoolboyGpioMode(coolboyGpioMode);
+        }
+
+        protected override void InitBanking()
+        {
+            dumper.WriteCpu(0x4800, 0xA0); //enable MMC3 access
+            dumper.WriteCpu(0xA001, 0x00); //enable write signal
+
         }
 
         protected override byte[] LoadPrg(string filename)
@@ -157,6 +164,7 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                 5 => 0x5000,
                 6 => 0x6000,
                 7 => 0x5000,
+                11 => 0x4800,
                 _ => 0x6000,
             };
             byte r0, r1, r2, r3;
@@ -179,6 +187,9 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                           ((bank >> 3) & 0b111) // 5(19), 4(18), 3(17) bits
                         | (((bank >> 6) & 0b11) << 4) // 7(21), 6(20) bits
                         | (1 << 6)); // PRG mask 256KB
+                    break;
+                case 11:
+                     r0 = (byte)0xe0; // 16k PRG page
                     break;
                 // TODO: submappers 6 and 7
                 default:
@@ -208,12 +219,29 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
                 case 5:
                     r1 = 1 << 7; // PRG mask 512KB
                     break;
+                case 11:
+                    r1 = (byte)(((bank / 2) << 1) & 0xff);
+                    break;
                 default:
                     throw new NotSupportedException($"Submapper {submapper} is not supported");
             }
-            r2 = 0;
-            r3 = (byte)((1 << 4) // NROM mode
-                | ((bank & 0b111) << 1)); // 2(16), 1(15), 0(14) bits
+            switch (submapper)
+            {
+                case 11:
+                    r2 = (byte)((bank / 2)>> 7);
+                    r3 = (byte)0;
+                    break;
+                default:
+                    r2 = 0;
+                    r3 = (byte)((1 << 4) // NROM mode
+                        | ((bank & 0b111) << 1)); // 2(16), 1(15), 0(14) bits
+                    break;
+            }
+            dumper.WriteCpu(baseRegOffset, 0xA0);
+            if (submapper == 11)
+            {
+                dumper.WriteCpu(0x8000, 0x06, (byte)(bank % 2 == 0 ? 0 : 1));
+            }
             dumper.WriteCpu(baseRegOffset, r0, r1, r2, r3);
         }
     }

@@ -49,7 +49,7 @@ namespace com.clusterrr.Famicom.Dumper
         public const string APP_NAME = "Famicom Dumper Client";
         public const string REPO_PATH = "https://github.com/ClusterM/famicom-dumper-client";
         public const int DEFAULT_GRPC_PORT = 26673;
-        public static DateTime BUILD_TIME = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(long.Parse(Properties.Resources.buildtime.Trim()));
+        public static DateTime BUILD_TIME = DateTime.UtcNow;
 
         static int Main(string[] args)
         {

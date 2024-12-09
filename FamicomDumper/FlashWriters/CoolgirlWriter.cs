@@ -72,17 +72,16 @@ namespace com.clusterrr.Famicom.Dumper.FlashWriters
             dumper.WriteCpu(0x8555, 0x55);
             dumper.WriteCpu(sectorAddress, 0x30);
 
-            Console.Write("Erase sector {0:x}", dumper.ReadCpu(sectorAddress));
-            DateTime startTime = DateTime.Now;
+            var startTime = Environment.TickCount64;
             while (true)
             {
                 byte b = dumper.ReadCpu(sectorAddress);
                 if (b == 0xFF)
                     break;
-                if ((DateTime.Now - startTime).TotalMilliseconds >= 5000)
+                if ((Environment.TickCount64 - startTime) >= 1500)
                 {
                     Console.WriteLine(@" - erase failed");
-                    throw new Exception("erase failed");
+                    throw new Exception($"Erase sector {sectorAddress:x04}");
                 }
             }
         }

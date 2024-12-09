@@ -21,12 +21,12 @@
 
         var bank_size = 0x40000;
         var banks = Math.Ceiling((double)size / bank_size);
-        if (banks > 4) throw new ArgumentOutOfRangeException("CHR total size is too big");
+        if (banks > 6) throw new ArgumentOutOfRangeException("CHR total size is too big");
         for (var bank = 0; bank < banks; bank++)
         {
             var read_size = Math.Min(size, bank_size);
             var outer_bank = (bank << 5) & 0xF0;
-            Console.WriteLine($"Set CHR outer-banks #{bank}/{banks}");
+            Console.WriteLine($"Set CHR 256k outer-banks #{bank}/{banks}");
             dumper.WriteCpu(0x5FF2, (byte)outer_bank);
             DumpChrMmc3(dumper, data, read_size);
             size -= read_size;

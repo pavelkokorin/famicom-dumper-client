@@ -1,10 +1,12 @@
-﻿/// Has better supported on Mesen than on FCUX
+﻿///
+/// Mapper 176 is better supported on Mesen than on FCEUX. Particularly Mesen supports 176 MMC3 extended mode, than FCUX doesn't.
+///
 class Mapper176 : IMapper
 {
     public string Name { get => "Mapper 176"; }
-    public string UnifName { get => "FK23CA"; } // with mmc3 extended mode
+    public string UnifName { get => "FK23CA"; } // with mmc3 extended mode (can be detected by game writing to 0x5FF3 register values 0x02/0x44 to enable/disable extended mode)
     public int Number { get => 176; }
-    public int Submapper { get => 1; } // with mmc3 extended mode
+    public int Submapper { get => 1; }
     public int DefaultPrgSize { get => 512 * 1024; }
     public int DefaultChrSize { get => 256 * 1024; }
 

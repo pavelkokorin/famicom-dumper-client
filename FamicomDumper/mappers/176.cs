@@ -1,8 +1,10 @@
-﻿class MMC3 : IMapper
+﻿/// Has better supported on Mesen than on FCUX
+class Mapper176 : IMapper
 {
     public string Name { get => "Mapper 176"; }
-    public string UnifName { get => "FK23CA"; }
+    public string UnifName { get => "FK23CA"; } // with mmc3 extended mode
     public int Number { get => 176; }
+    public int Submapper { get => 1; } // with mmc3 extended mode
     public int DefaultPrgSize { get => 512 * 1024; }
     public int DefaultChrSize { get => 256 * 1024; }
 
@@ -63,7 +65,7 @@
 
     public void EnablePrgRam(IFamicomDumperConnection dumper)
     {
-        dumper.WriteCpu(0xA001, 0x80);
+        dumper.WriteCpu(0xA001, 0x60);
     }
 
     public MirroringType GetMirroring(IFamicomDumperConnection dumper)
